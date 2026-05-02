@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useRef } from "react";
-import { db, storage } from "../firebase/config";
+import { db } from "../firebase/config";
 import {
   collection, getDocs, addDoc, updateDoc, deleteDoc,
   doc, orderBy, query, serverTimestamp, setDoc, getDoc
 } from "firebase/firestore";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useAuth } from "../contexts/AuthContext";
+
+// ImgBB free image hosting — get free API key at https://api.imgbb.com
+const IMGBB_API_KEY = "YOUR_IMGBB_API_KEY"; // replace with your key
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import WebinarPoster from "../components/WebinarPoster";
@@ -55,8 +57,8 @@ export default function Admin() {
   );
 }
 
-/* ─── IMAGE UPLOAD HELPER ───────────────────────────────────────── */
-function ImageUploader({ value, onChange, folder = "thumbnails" }) {
+/* ─── IMAGE UPLOAD HELPER (ImgBB — free, no Firebase Storage needed) ── */
+function ImageUploader({ value, onChange }) {
   const fileRef = useRef();
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -65,23 +67,51 @@ function ImageUploader({ value, onChange, folder = "thumbnails" }) {
     const file = e.target.files[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) { toast.error("Please select an image file"); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
+    if (file.size > 32 * 1024 * 1024) { toast.error("Image must be under 32MB"); return; }
+
+    if (!IMGBB_API_KEY || IMGBB_API_KEY === "YOUR_IMGBB_API_KEY") {
+      toast.error("Add your ImgBB API key in Admin.js (see SETUP_GUIDE)");
+      return;
+    }
 
     setUploading(true);
-    const storageRef = ref(storage, `${folder}/${Date.now()}_${file.name}`);
-    const task = uploadBytesResumable(storageRef, file);
+    setProgress(30);
 
-    task.on("state_changed",
-      (snap) => setProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
-      (err) => { toast.error("Upload failed: " + err.message); setUploading(false); },
-      async () => {
-        const url = await getDownloadURL(task.snapshot.ref);
-        onChange(url);
-        setUploading(false);
-        setProgress(0);
+    try {
+      const base64 = await fileToBase64(file);
+      const formData = new FormData();
+      formData.append("key", IMGBB_API_KEY);
+      formData.append("image", base64.split(",")[1]);
+
+      setProgress(60);
+      const res = await fetch("https://api.imgbb.com/1/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      setProgress(90);
+
+      if (data.success) {
+        onChange(data.data.display_url);
         toast.success("Image uploaded!");
+      } else {
+        throw new Error(data.error?.message || "Upload failed");
       }
-    );
+    } catch (err) {
+      toast.error("Upload failed: " + err.message);
+    } finally {
+      setUploading(false);
+      setProgress(0);
+    }
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 
   return (
@@ -95,7 +125,9 @@ function ImageUploader({ value, onChange, folder = "thumbnails" }) {
       <div className="upload-area" onClick={() => fileRef.current?.click()}>
         {uploading ? (
           <div className="upload-progress">
-            <div className="upload-bar" style={{ width: `${progress}%` }} />
+            <div className="upload-bar-track">
+              <div className="upload-bar" style={{ width: `${progress}%` }} />
+            </div>
             <span>Uploading {progress}%...</span>
           </div>
         ) : (
