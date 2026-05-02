@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { db } from "../firebase/config";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
-import { getDriveThumbnailUrl, getDriveViewUrl, formatDate } from "../utils/driveUtils";
+import { formatDate } from "../utils/driveUtils";
+import WebinarPoster from "../components/WebinarPoster";
 import "./Webinars.css";
 
 export default function Webinars() {
@@ -9,9 +10,7 @@ export default function Webinars() {
   const [loading, setLoading] = useState(true);
   const [posterModal, setPosterModal] = useState(null);
 
-  useEffect(() => {
-    fetchWebinars();
-  }, []);
+  useEffect(() => { fetchWebinars(); }, []);
 
   async function fetchWebinars() {
     try {
@@ -43,7 +42,6 @@ export default function Webinars() {
                 <div className="wc-body">
                   <div className="skeleton" style={{ height: 22, width: "70%", marginBottom: 12 }} />
                   <div className="skeleton" style={{ height: 16, width: "50%", marginBottom: 8 }} />
-                  <div className="skeleton" style={{ height: 14, width: "90%", marginBottom: 8 }} />
                   <div className="skeleton" style={{ height: 36, width: 120, marginTop: 16 }} />
                 </div>
               </div>
@@ -51,7 +49,10 @@ export default function Webinars() {
           </div>
         ) : upcoming.length === 0 ? (
           <div className="empty-state fade-up">
-            <svg width="64" height="64" fill="none" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            <svg width="64" height="64" fill="none" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
             <p>No upcoming webinars scheduled. Stay tuned!</p>
           </div>
         ) : (
@@ -63,32 +64,23 @@ export default function Webinars() {
         )}
       </div>
 
-      {/* Poster Modal */}
+      {/* Poster Modal — shows large generated poster */}
       {posterModal && (
         <div className="modal-backdrop" onClick={() => setPosterModal(null)}>
           <div className="poster-modal" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setPosterModal(null)}>✕</button>
             <h3>{posterModal.title}</h3>
-            {posterModal.posterUrl ? (
-              <img
-                src={getDriveThumbnailUrl(posterModal.posterUrl) || posterModal.posterUrl}
-                alt="Event Poster"
-                className="poster-full"
-                onError={(e) => {
-                  e.target.src = posterModal.posterUrl;
-                }}
-              />
-            ) : (
-              <p style={{ color: "var(--gray-400)", textAlign: "center", padding: 40 }}>No poster available</p>
-            )}
+            <div style={{ borderRadius: 12, overflow: "hidden", margin: "0 0 16px" }}>
+              <WebinarPoster webinar={posterModal} size="full" />
+            </div>
             <div className="poster-modal-actions">
-              {posterModal.posterUrl && (
-                <a href={getDriveViewUrl(posterModal.posterUrl)} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
-                  🔗 Open in Drive
-                </a>
-              )}
               {posterModal.registrationLink && (
-                <a href={posterModal.registrationLink} target="_blank" rel="noreferrer" className="btn btn-orange">
+                <a
+                  href={posterModal.registrationLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-orange"
+                >
                   Register Now →
                 </a>
               )}
@@ -101,18 +93,14 @@ export default function Webinars() {
 }
 
 function WebinarCard({ webinar, index, onViewPoster }) {
-  const thumb = getDriveThumbnailUrl(webinar.posterUrl);
   const isUpcoming = webinar.date && new Date(webinar.date) >= new Date();
 
   return (
     <div className="webinar-card fade-up" style={{ animationDelay: `${index * 0.1}s` }}>
+      {/* Generated poster instead of Drive image */}
       <div className="wc-poster" onClick={onViewPoster}>
-        {thumb ? (
-          <img src={thumb} alt={webinar.title} onError={(e) => { e.target.parentElement.innerHTML = '<div class="poster-fallback"><span>📋</span></div>'; }} />
-        ) : (
-          <div className="poster-fallback"><span>📋</span></div>
-        )}
-        <div className="poster-hover">View Poster</div>
+        <WebinarPoster webinar={webinar} size="card" />
+        <div className="poster-hover">View Full Poster</div>
       </div>
 
       <div className="wc-body">
