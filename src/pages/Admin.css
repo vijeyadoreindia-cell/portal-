@@ -49,7 +49,7 @@
 .admin-table-wrap { overflow-x: auto; }
 .admin-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 .admin-table th { background: var(--gray-100); color: var(--navy-dark); font-weight: 700; padding: 10px 14px; text-align: left; white-space: nowrap; }
-.admin-table td { padding: 12px 14px; border-bottom: 1px solid var(--gray-100); color: var(--gray-600); }
+.admin-table td { padding: 10px 14px; border-bottom: 1px solid var(--gray-100); color: var(--gray-600); vertical-align: middle; }
 .admin-table tr:last-child td { border-bottom: none; }
 .admin-table tr:hover td { background: #fafbfd; }
 .empty-row { text-align: center; color: var(--gray-400); font-style: italic; padding: 30px !important; }
@@ -70,6 +70,59 @@
 .badge-admin-sm { background: var(--navy); color: white; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
 
 .loading-text { color: var(--gray-400); text-align: center; padding: 30px; }
+
+/* ── Image Uploader ── */
+.image-uploader { display: flex; flex-direction: column; gap: 10px; }
+
+.upload-preview {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  max-width: 240px;
+}
+.upload-preview img {
+  width: 100%; aspect-ratio: 16/9;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  display: block;
+  border: 2px solid var(--gray-200);
+}
+.remove-img-btn {
+  position: absolute; top: 6px; right: 6px;
+  background: rgba(0,0,0,0.65); color: white;
+  border: none; border-radius: 20px;
+  font-size: 0.72rem; font-weight: 700;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+.remove-img-btn:hover { background: #e53e3e; }
+
+.upload-area {
+  border: 2px dashed var(--gray-200);
+  border-radius: var(--radius-sm);
+  padding: 20px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  cursor: pointer;
+  color: var(--gray-400);
+  transition: border-color 0.2s, background 0.2s;
+  font-size: 0.85rem;
+}
+.upload-area:hover { border-color: var(--navy); background: var(--gray-100); color: var(--navy); }
+.upload-area small { font-size: 0.75rem; color: var(--gray-400); }
+
+.upload-progress {
+  width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.upload-bar-track {
+  width: 100%; height: 6px;
+  background: var(--gray-200); border-radius: 3px; overflow: hidden;
+}
+.upload-bar {
+  height: 6px; background: var(--navy);
+  border-radius: 3px;
+  transition: width 0.3s;
+}
 
 @media (max-width: 600px) {
   .admin-content { padding: 18px; }
