@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { db } from "../firebase/config";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
-import { getDriveEmbedUrl, getDriveThumbnailUrl, formatDate } from "../utils/driveUtils";
+import { getDriveEmbedUrl, formatDate } from "../utils/driveUtils";
+import DriveImage from "../components/DriveImage";
 import "./Podcasts.css";
 
 export default function Podcasts() {
@@ -9,9 +10,7 @@ export default function Podcasts() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
 
-  useEffect(() => {
-    fetchPodcasts();
-  }, []);
+  useEffect(() => { fetchPodcasts(); }, []);
 
   async function fetchPodcasts() {
     try {
@@ -24,21 +23,15 @@ export default function Podcasts() {
     setLoading(false);
   }
 
-  const openVideo = (podcast) => {
-    setSelected(podcast);
-  };
-
   return (
     <main className="page-main">
       <div className="container">
-        {/* Hero */}
         <section className="page-hero fade-up">
           <div className="hero-badge">🎙 ADORE Podcasts</div>
           <h1>Listen. Learn. <span className="highlight">Lead.</span></h1>
           <p>Inspiring conversations with changemakers, educators, and youth leaders from around the world.</p>
         </section>
 
-        {/* Grid */}
         {loading ? (
           <div className="podcasts-grid">
             {[...Array(6)].map((_, i) => (
@@ -57,13 +50,12 @@ export default function Podcasts() {
         ) : (
           <div className="podcasts-grid">
             {podcasts.map((p, i) => (
-              <PodcastCard key={p.id} podcast={p} index={i} onPlay={() => openVideo(p)} />
+              <PodcastCard key={p.id} podcast={p} index={i} onPlay={() => setSelected(p)} />
             ))}
           </div>
         )}
       </div>
 
-      {/* Video Modal */}
       {selected && (
         <div className="modal-backdrop" onClick={() => setSelected(null)}>
           <div className="video-modal" onClick={(e) => e.stopPropagation()}>
@@ -92,17 +84,26 @@ export default function Podcasts() {
 }
 
 function PodcastCard({ podcast, index, onPlay }) {
-  const thumb = podcast.thumbnailUrl || getDriveThumbnailUrl(podcast.videoUrl);
+  const thumbFallback = (
+    <div className="thumb-placeholder">
+      <svg width="48" height="48" fill="none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="1.5" opacity="0.5"/>
+        <path d="M10 8l6 4-6 4V8z" fill="white" opacity="0.7"/>
+      </svg>
+    </div>
+  );
+
   return (
     <div className="podcast-card fade-up" style={{ animationDelay: `${index * 0.07}s` }}>
       <div className="card-thumb" onClick={onPlay}>
-        {thumb ? (
-          <img src={thumb} alt={podcast.title} onError={(e) => { e.target.style.display = "none"; }} />
-        ) : (
-          <div className="thumb-placeholder">
-            <svg width="48" height="48" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="white" strokeWidth="1.5" opacity="0.5"/><path d="M10 8l6 4-6 4V8z" fill="white" opacity="0.7"/></svg>
-          </div>
-        )}
+        <DriveImage
+          url={podcast.videoUrl}
+          thumbnailUrl={podcast.thumbnailUrl}
+          alt={podcast.title}
+          className="drive-thumb-img"
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform 0.3s" }}
+          fallback={thumbFallback}
+        />
         <div className="play-overlay">
           <div className="play-btn-big">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
