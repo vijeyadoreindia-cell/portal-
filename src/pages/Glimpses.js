@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { db } from "../firebase/config";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
-import { getDriveEmbedUrl, getDriveThumbnailUrl, formatDate } from "../utils/driveUtils";
+import { getDriveEmbedUrl, formatDate } from "../utils/driveUtils";
+import DriveImage from "../components/DriveImage";
 import "./Glimpses.css";
 
 export default function Glimpses() {
@@ -9,9 +10,7 @@ export default function Glimpses() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
 
-  useEffect(() => {
-    fetchGlimpses();
-  }, []);
+  useEffect(() => { fetchGlimpses(); }, []);
 
   async function fetchGlimpses() {
     try {
@@ -23,8 +22,6 @@ export default function Glimpses() {
     }
     setLoading(false);
   }
-
-  const openVideo = (g) => setSelected(g);
 
   return (
     <main className="page-main">
@@ -53,13 +50,12 @@ export default function Glimpses() {
         ) : (
           <div className="glimpses-grid">
             {glimpses.map((g, i) => (
-              <GlimpseCard key={g.id} glimpse={g} index={i} onPlay={() => openVideo(g)} />
+              <GlimpseCard key={g.id} glimpse={g} index={i} onPlay={() => setSelected(g)} />
             ))}
           </div>
         )}
       </div>
 
-      {/* Video Modal */}
       {selected && (
         <div className="modal-backdrop" onClick={() => setSelected(null)}>
           <div className="video-modal" onClick={(e) => e.stopPropagation()}>
@@ -88,18 +84,26 @@ export default function Glimpses() {
 }
 
 function GlimpseCard({ glimpse, index, onPlay }) {
-  const thumb = glimpse.thumbnailUrl || getDriveThumbnailUrl(glimpse.videoUrl);
+  const thumbFallback = (
+    <div className="thumb-placeholder glimpse-placeholder">
+      <svg width="44" height="44" fill="none" viewBox="0 0 24 24">
+        <path d="M15 10l4.553-2.276A1 1 0 0121 8.724v6.552a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+          stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.7"/>
+      </svg>
+    </div>
+  );
 
   return (
     <div className="glimpse-card fade-up" style={{ animationDelay: `${index * 0.07}s` }}>
       <div className="card-thumb glimpse-thumb" onClick={onPlay}>
-        {thumb ? (
-          <img src={thumb} alt={glimpse.title} onError={(e) => { e.target.style.display = "none"; }} />
-        ) : (
-          <div className="thumb-placeholder glimpse-placeholder">
-            <svg width="44" height="44" fill="none" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.724v6.552a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.7"/></svg>
-          </div>
-        )}
+        <DriveImage
+          url={glimpse.videoUrl}
+          thumbnailUrl={glimpse.thumbnailUrl}
+          alt={glimpse.title}
+          className="drive-thumb-img"
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform 0.3s" }}
+          fallback={thumbFallback}
+        />
         <div className="play-overlay">
           <div className="play-btn-big">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
