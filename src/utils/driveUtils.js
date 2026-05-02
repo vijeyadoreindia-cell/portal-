@@ -1,53 +1,60 @@
-import React, { useState } from "react";
-import { getDriveThumbnailUrls } from "../utils/driveUtils";
+/**
+ * Convert various Google Drive URL formats to embed/view/thumbnail URLs
+ */
+
+/** Extract the Google Drive file ID from any share/view/embed URL */
+export function extractDriveId(url) {
+  if (!url) return null;
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/,
+    /id=([a-zA-Z0-9_-]+)/,
+    /\/d\/([a-zA-Z0-9_-]+)/,
+  ];
+  for (const p of patterns) {
+    const match = url.match(p);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+export function getDriveEmbedUrl(url) {
+  if (!url) return null;
+  if (url.includes("/preview") || url.includes("embed")) return url;
+  const id = extractDriveId(url);
+  if (id) return `https://drive.google.com/file/d/${id}/preview`;
+  return url;
+}
 
 /**
- * DriveImage — renders a Google Drive thumbnail with automatic fallback.
- *
- * Google Drive thumbnail URLs can fail for several reasons:
- *   - Ad blockers blocking Google tracking domains
- *   - CORS restrictions on certain endpoints
- *   - File not shared as "Anyone with the link"
- *   - Browser privacy settings
- *
- * This component tries each URL in sequence on error, then renders
- * the `fallback` prop if all URLs fail.
- *
- * Usage:
- *   <DriveImage
- *     url={podcast.videoUrl}          // any Drive share/view/embed URL
- *     thumbnailUrl={podcast.thumbnailUrl}  // optional manual override
- *     alt="Podcast thumbnail"
- *     className="my-img-class"
- *     fallback={<div className="thumb-placeholder">...</div>}
- *   />
+ * Returns an array of thumbnail URLs to try in order.
+ * Use with the DriveImage component which cycles through on error.
  */
-export default function DriveImage({ url, thumbnailUrl, alt, className, style, fallback }) {
-  // Build the list of URLs to try: manual override first, then auto-generated
-  const candidates = React.useMemo(() => {
-    const list = [];
-    if (thumbnailUrl) list.push(thumbnailUrl);
-    list.push(...getDriveThumbnailUrls(url));
-    // Deduplicate
-    return [...new Set(list)];
-  }, [url, thumbnailUrl]);
+export function getDriveThumbnailUrls(url) {
+  if (!url) return [];
+  const id = extractDriveId(url);
+  if (!id) return [];
+  return [
+    `https://drive.google.com/thumbnail?id=${id}&sz=w400`,
+    `https://drive.google.com/uc?export=view&id=${id}`,
+    `https://lh3.googleusercontent.com/d/${id}`,
+  ];
+}
 
-  const [index, setIndex] = useState(0);
+/** Backwards compat — returns the first URL to try */
+export function getDriveThumbnailUrl(url) {
+  const urls = getDriveThumbnailUrls(url);
+  return urls[0] || null;
+}
 
-  // All URLs failed — render fallback
-  if (index >= candidates.length) {
-    return fallback || null;
-  }
+export function getDriveViewUrl(url) {
+  if (!url) return null;
+  const id = extractDriveId(url);
+  if (id) return `https://drive.google.com/file/d/${id}/view`;
+  return url;
+}
 
-  return (
-    <img
-      src={candidates[index]}
-      alt={alt || ""}
-      className={className}
-      style={style}
-      onError={() => setIndex((i) => i + 1)}
-      // Reset index if the URL prop changes (e.g. different card)
-      key={candidates[index]}
-    />
-  );
+export function formatDate(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
 }
