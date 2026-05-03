@@ -1,20 +1,29 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import { db } from "../firebase/config";
 import {
   collection, getDocs, addDoc, updateDoc, deleteDoc,
   doc, orderBy, query, serverTimestamp, setDoc, getDoc
 } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
-
-// ImgBB free image hosting — get free API key at https://api.imgbb.com
-const IMGBB_API_KEY = "YOUR_IMGBB_API_KEY"; // replace with your key
-import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
 import WebinarPoster from "../components/WebinarPoster";
 import "./Admin.css";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ImgBB — free image hosting (no Firebase Storage / no paid plan needed)
+// Steps to get your free API key (takes 2 minutes):
+//   1. Go to https://api.imgbb.com
+//   2. Click "Get API key" → sign up (free, no credit card)
+//   3. Copy your API key and paste it below
+// ─────────────────────────────────────────────────────────────────────────────
+const IMGBB_API_KEY = "45c5b7b89935d513b1d2f188ecb0e86d"; // ← paste your key here
+
 const TABS = ["Podcasts", "Webinars", "Glimpses", "Admins"];
 
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  MAIN ADMIN PAGE                                                           */
+/* ═══════════════════════════════════════════════════════════════════════════ */
 export default function Admin() {
   const { isAdmin, user, SUPER_ADMIN } = useAuth();
   const navigate = useNavigate();
@@ -38,12 +47,21 @@ export default function Admin() {
         </div>
 
         <div className="admin-tabs">
-          {TABS.map((t) => (
-            (t === "Admins" && user?.email !== SUPER_ADMIN) ? null :
-            <button key={t} className={`tab-btn ${activeTab === t ? "active" : ""}`} onClick={() => setActiveTab(t)}>
-              {t === "Podcasts" && "🎙"} {t === "Webinars" && "📅"} {t === "Glimpses" && "🎬"} {t === "Admins" && "👥"} {t}
-            </button>
-          ))}
+          {TABS.map((t) =>
+            t === "Admins" && user?.email !== SUPER_ADMIN ? null : (
+              <button
+                key={t}
+                className={`tab-btn ${activeTab === t ? "active" : ""}`}
+                onClick={() => setActiveTab(t)}
+              >
+                {t === "Podcasts" && "🎙 "}
+                {t === "Webinars" && "📅 "}
+                {t === "Glimpses" && "🎬 "}
+                {t === "Admins"   && "👥 "}
+                {t}
+              </button>
+            )
+          )}
         </div>
 
         <div className="admin-content fade-in">
@@ -57,43 +75,58 @@ export default function Admin() {
   );
 }
 
-/* ─── IMAGE UPLOAD HELPER (ImgBB — free, no Firebase Storage needed) ── */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  IMAGE UPLOADER — uses ImgBB (free, works on any host, no CORS issues)    */
+/* ═══════════════════════════════════════════════════════════════════════════ */
 function ImageUploader({ value, onChange }) {
   const fileRef = useRef();
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function handleFile(e) {
     const file = e.target.files[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) { toast.error("Please select an image file"); return; }
-    if (file.size > 32 * 1024 * 1024) { toast.error("Image must be under 32MB"); return; }
+    // Reset input so same file can be re-selected after removal
+    e.target.value = "";
 
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file"); return;
+    }
+    if (file.size > 32 * 1024 * 1024) {
+      toast.error("Image must be under 32 MB"); return;
+    }
     if (!IMGBB_API_KEY || IMGBB_API_KEY === "YOUR_IMGBB_API_KEY") {
-      toast.error("Add your ImgBB API key in Admin.js (see SETUP_GUIDE)");
+      toast.error("Paste your ImgBB API key in Admin.js — get one free at api.imgbb.com");
       return;
     }
 
     setUploading(true);
-    setProgress(30);
+    setProgress(20);
 
     try {
       const base64 = await fileToBase64(file);
+      setProgress(50);
+
       const formData = new FormData();
-      formData.append("key", IMGBB_API_KEY);
+      formData.append("key",   IMGBB_API_KEY);
       formData.append("image", base64.split(",")[1]);
 
-      setProgress(60);
-      const res = await fetch("https://api.imgbb.com/1/upload", {
-        method: "POST",
-        body: formData,
-      });
+      const res  = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body: formData });
       const data = await res.json();
       setProgress(90);
 
       if (data.success) {
         onChange(data.data.display_url);
-        toast.success("Image uploaded!");
+        toast.success("Image uploaded successfully!");
       } else {
         throw new Error(data.error?.message || "Upload failed");
       }
@@ -105,15 +138,6 @@ function ImageUploader({ value, onChange }) {
     }
   }
 
-  function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
   return (
     <div className="image-uploader">
       {value && (
@@ -122,22 +146,22 @@ function ImageUploader({ value, onChange }) {
           <button type="button" className="remove-img-btn" onClick={() => onChange("")}>✕ Remove</button>
         </div>
       )}
-      <div className="upload-area" onClick={() => fileRef.current?.click()}>
+      <div className="upload-area" onClick={() => !uploading && fileRef.current?.click()}>
         {uploading ? (
           <div className="upload-progress">
             <div className="upload-bar-track">
               <div className="upload-bar" style={{ width: `${progress}%` }} />
             </div>
-            <span>Uploading {progress}%...</span>
+            <span>Uploading {progress}%…</span>
           </div>
         ) : (
           <>
             <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
               <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span>{value ? "Replace image" : "Click to upload image"}</span>
-            <small>JPG, PNG, WebP · max 5MB</small>
+            <small>JPG, PNG, WebP · max 32 MB</small>
           </>
         )}
       </div>
@@ -146,24 +170,23 @@ function ImageUploader({ value, onChange }) {
   );
 }
 
-/* ─── PODCASTS CRUD ─────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  PODCASTS                                                                  */
+/* ═══════════════════════════════════════════════════════════════════════════ */
 function PodcastsAdmin() {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [items,    setItems]    = useState([]);
+  const [loading,  setLoading]  = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState(null);
+  const [editing,  setEditing]  = useState(null);
 
   useEffect(() => { fetchItems(); }, []);
 
   async function fetchItems() {
-    const q = query(collection(db, "podcasts"), orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
+    setLoading(true);
+    const snap = await getDocs(query(collection(db, "podcasts"), orderBy("createdAt", "desc")));
     setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     setLoading(false);
   }
-
-  const handleEdit = (item) => { setEditing(item); setShowForm(true); };
-  const handleClose = () => { setShowForm(false); setEditing(null); };
 
   async function handleDelete(id) {
     if (!window.confirm("Delete this podcast?")) return;
@@ -180,34 +203,41 @@ function PodcastsAdmin() {
       await addDoc(collection(db, "podcasts"), { ...data, createdAt: serverTimestamp() });
       toast.success("Podcast added!");
     }
-    handleClose(); fetchItems();
+    setShowForm(false); setEditing(null); fetchItems();
   }
 
   return (
     <section>
       <div className="section-header">
         <h2>Podcasts <span className="count-badge">{items.length}</span></h2>
-        <button className="btn btn-primary" onClick={() => { setEditing(null); setShowForm(true); }}>+ Add Podcast</button>
+        <button className="btn btn-primary" onClick={() => { setEditing(null); setShowForm(true); }}>
+          + Add Podcast
+        </button>
       </div>
-      {loading ? <p className="loading-text">Loading...</p> : (
+
+      {loading ? <p className="loading-text">Loading…</p> : (
         <div className="admin-table-wrap">
           <table className="admin-table">
-            <thead><tr><th>Thumb</th><th>Title</th><th>Guest</th><th>Date</th><th>EP</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr><th>Thumb</th><th>Title</th><th>Guest</th><th>Date</th><th>EP</th><th>Actions</th></tr>
+            </thead>
             <tbody>
-              {items.length === 0 && <tr><td colSpan={6} className="empty-row">No podcasts yet</td></tr>}
+              {items.length === 0 && (
+                <tr><td colSpan={6} className="empty-row">No podcasts yet</td></tr>
+              )}
               {items.map((p) => (
                 <tr key={p.id}>
                   <td>
                     {p.thumbnailUrl
-                      ? <img src={p.thumbnailUrl} alt="" style={{ width: 48, height: 32, objectFit: "cover", borderRadius: 4 }} />
+                      ? <img src={p.thumbnailUrl} alt="" style={{ width: 56, height: 36, objectFit: "cover", borderRadius: 4 }} />
                       : <span style={{ fontSize: 20 }}>🎙</span>}
                   </td>
                   <td><strong>{p.title}</strong></td>
-                  <td>{p.guestName || "—"}</td>
-                  <td>{p.date || "—"}</td>
-                  <td>{p.episodeNumber ? `EP ${p.episodeNumber}` : "—"}</td>
+                  <td>{p.guestName      || "—"}</td>
+                  <td>{p.date          || "—"}</td>
+                  <td>{p.episodeNumber  ? `EP ${p.episodeNumber}` : "—"}</td>
                   <td className="action-cell">
-                    <button className="btn btn-ghost btn-sm" onClick={() => handleEdit(p)}>Edit</button>
+                    <button className="btn btn-ghost btn-sm"  onClick={() => { setEditing(p); setShowForm(true); }}>Edit</button>
                     <button className="btn btn-danger btn-sm" onClick={() => handleDelete(p.id)}>Delete</button>
                   </td>
                 </tr>
@@ -216,29 +246,36 @@ function PodcastsAdmin() {
           </table>
         </div>
       )}
-      {showForm && <PodcastForm initial={editing} onSave={handleSave} onClose={handleClose} />}
+
+      {showForm && (
+        <PodcastForm
+          initial={editing}
+          onSave={handleSave}
+          onClose={() => { setShowForm(false); setEditing(null); }}
+        />
+      )}
     </section>
   );
 }
 
 function PodcastForm({ initial, onSave, onClose }) {
   const [form, setForm] = useState({
-    title: initial?.title || "",
-    guestName: initial?.guestName || "",
-    description: initial?.description || "",
-    videoUrl: initial?.videoUrl || "",
-    thumbnailUrl: initial?.thumbnailUrl || "",
+    title:         initial?.title         || "",
+    guestName:     initial?.guestName     || "",
+    description:   initial?.description   || "",
+    videoUrl:      initial?.videoUrl      || "",
+    thumbnailUrl:  initial?.thumbnailUrl  || "",
     episodeNumber: initial?.episodeNumber || "",
-    date: initial?.date || "",
-    duration: initial?.duration || "",
+    date:          initial?.date          || "",
+    duration:      initial?.duration      || "",
   });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const handleSubmit = (e) => {
+  function handleSubmit(e) {
     e.preventDefault();
     if (!form.title || !form.videoUrl) { toast.error("Title and Video URL are required"); return; }
     onSave(form);
-  };
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -246,31 +283,45 @@ function PodcastForm({ initial, onSave, onClose }) {
         <button className="modal-close" onClick={onClose}>✕</button>
         <h2>{initial ? "Edit Podcast" : "Add New Podcast"}</h2>
         <form onSubmit={handleSubmit}>
-          <div className="form-group"><label>Title *</label><input value={form.title} onChange={set("title")} placeholder="Podcast title" /></div>
-          <div className="form-group"><label>Guest Name</label><input value={form.guestName} onChange={set("guestName")} placeholder="e.g. Dr. Jane Doe" /></div>
+          <div className="form-group">
+            <label>Title *</label>
+            <input value={form.title} onChange={set("title")} placeholder="Podcast title" />
+          </div>
+          <div className="form-group">
+            <label>Guest Name</label>
+            <input value={form.guestName} onChange={set("guestName")} placeholder="e.g. Dr. Jane Doe" />
+          </div>
           <div className="form-group">
             <label>Google Drive Video URL *</label>
-            <input value={form.videoUrl} onChange={set("videoUrl")} placeholder="https://drive.google.com/file/d/..." />
+            <input value={form.videoUrl} onChange={set("videoUrl")} placeholder="https://drive.google.com/file/d/…" />
             <p className="form-hint">Paste the Google Drive share link of the video</p>
           </div>
-
-          {/* ── THUMBNAIL: upload image directly ── */}
           <div className="form-group">
             <label>Thumbnail Image</label>
             <ImageUploader
               value={form.thumbnailUrl}
               onChange={(url) => setForm((f) => ({ ...f, thumbnailUrl: url }))}
-              folder="podcast-thumbnails"
             />
-            <p className="form-hint">Upload a cover image for this podcast (recommended: 16:9, under 5MB)</p>
+            <p className="form-hint">Upload a cover image (16:9 recommended)</p>
           </div>
-
           <div className="form-row">
-            <div className="form-group"><label>Episode No.</label><input value={form.episodeNumber} onChange={set("episodeNumber")} placeholder="e.g. 1" type="number" /></div>
-            <div className="form-group"><label>Date</label><input value={form.date} onChange={set("date")} type="date" /></div>
-            <div className="form-group"><label>Duration</label><input value={form.duration} onChange={set("duration")} placeholder="e.g. 45 min" /></div>
+            <div className="form-group">
+              <label>Episode No.</label>
+              <input value={form.episodeNumber} onChange={set("episodeNumber")} placeholder="e.g. 1" type="number" />
+            </div>
+            <div className="form-group">
+              <label>Date</label>
+              <input value={form.date} onChange={set("date")} type="date" />
+            </div>
+            <div className="form-group">
+              <label>Duration</label>
+              <input value={form.duration} onChange={set("duration")} placeholder="e.g. 45 min" />
+            </div>
           </div>
-          <div className="form-group"><label>Description</label><textarea value={form.description} onChange={set("description")} placeholder="Brief description..." /></div>
+          <div className="form-group">
+            <label>Description</label>
+            <textarea value={form.description} onChange={set("description")} placeholder="Brief description…" />
+          </div>
           <div className="form-actions">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary">{initial ? "Update" : "Add Podcast"}</button>
@@ -281,18 +332,20 @@ function PodcastForm({ initial, onSave, onClose }) {
   );
 }
 
-/* ─── WEBINARS CRUD ─────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  WEBINARS                                                                  */
+/* ═══════════════════════════════════════════════════════════════════════════ */
 function WebinarsAdmin() {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [items,    setItems]    = useState([]);
+  const [loading,  setLoading]  = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState(null);
+  const [editing,  setEditing]  = useState(null);
 
   useEffect(() => { fetchItems(); }, []);
 
   async function fetchItems() {
-    const q = query(collection(db, "webinars"), orderBy("date", "asc"));
-    const snap = await getDocs(q).catch(() => ({ docs: [] }));
+    setLoading(true);
+    const snap = await getDocs(query(collection(db, "webinars"), orderBy("date", "asc"))).catch(() => ({ docs: [] }));
     setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     setLoading(false);
   }
@@ -319,27 +372,34 @@ function WebinarsAdmin() {
     <section>
       <div className="section-header">
         <h2>Upcoming Webinars <span className="count-badge">{items.length}</span></h2>
-        <button className="btn btn-primary" onClick={() => { setEditing(null); setShowForm(true); }}>+ Add Webinar</button>
+        <button className="btn btn-primary" onClick={() => { setEditing(null); setShowForm(true); }}>
+          + Add Webinar
+        </button>
       </div>
-      {loading ? <p className="loading-text">Loading...</p> : (
+
+      {loading ? <p className="loading-text">Loading…</p> : (
         <div className="admin-table-wrap">
           <table className="admin-table">
-            <thead><tr><th>Poster</th><th>Title</th><th>Speaker</th><th>Date</th><th>Time</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr><th>Poster</th><th>Title</th><th>Speaker</th><th>Date</th><th>Time</th><th>Actions</th></tr>
+            </thead>
             <tbody>
-              {items.length === 0 && <tr><td colSpan={6} className="empty-row">No webinars yet</td></tr>}
+              {items.length === 0 && (
+                <tr><td colSpan={6} className="empty-row">No webinars yet</td></tr>
+              )}
               {items.map((w) => (
                 <tr key={w.id}>
                   <td>
-                    <div style={{ width: 56, height: 36, borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ width: 64, height: 40, borderRadius: 4, overflow: "hidden" }}>
                       <WebinarPoster webinar={w} size="card" />
                     </div>
                   </td>
                   <td><strong>{w.title}</strong></td>
                   <td>{w.speaker || "—"}</td>
-                  <td>{w.date || "—"}</td>
-                  <td>{w.time || "—"}</td>
+                  <td>{w.date   || "—"}</td>
+                  <td>{w.time   || "—"}</td>
                   <td className="action-cell">
-                    <button className="btn btn-ghost btn-sm" onClick={() => { setEditing(w); setShowForm(true); }}>Edit</button>
+                    <button className="btn btn-ghost btn-sm"  onClick={() => { setEditing(w); setShowForm(true); }}>Edit</button>
                     <button className="btn btn-danger btn-sm" onClick={() => handleDelete(w.id)}>Delete</button>
                   </td>
                 </tr>
@@ -348,30 +408,37 @@ function WebinarsAdmin() {
           </table>
         </div>
       )}
-      {showForm && <WebinarForm initial={editing} onSave={handleSave} onClose={() => { setShowForm(false); setEditing(null); }} />}
+
+      {showForm && (
+        <WebinarForm
+          initial={editing}
+          onSave={handleSave}
+          onClose={() => { setShowForm(false); setEditing(null); }}
+        />
+      )}
     </section>
   );
 }
 
 function WebinarForm({ initial, onSave, onClose }) {
   const [form, setForm] = useState({
-    title: initial?.title || "",
-    speaker: initial?.speaker || "",
-    description: initial?.description || "",
-    date: initial?.date || "",
-    time: initial?.time || "",
-    platform: initial?.platform || "",
-    tag: initial?.tag || "",
+    title:            initial?.title            || "",
+    speaker:          initial?.speaker          || "",
+    description:      initial?.description      || "",
+    date:             initial?.date             || "",
+    time:             initial?.time             || "",
+    platform:         initial?.platform         || "",
+    tag:              initial?.tag              || "",
     registrationLink: initial?.registrationLink || "",
-    completed: initial?.completed || false,
+    completed:        initial?.completed        || false,
   });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const handleSubmit = (e) => {
+  function handleSubmit(e) {
     e.preventDefault();
     if (!form.title) { toast.error("Title is required"); return; }
     onSave(form);
-  };
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -380,26 +447,41 @@ function WebinarForm({ initial, onSave, onClose }) {
         <h2>{initial ? "Edit Webinar" : "Add New Webinar"}</h2>
 
         {/* Live poster preview */}
-        <div style={{ borderRadius: 10, overflow: "hidden", marginBottom: 20, height: 140 }}>
+        <div style={{ borderRadius: 10, overflow: "hidden", marginBottom: 12, height: 130 }}>
           <WebinarPoster webinar={form} size="full" />
         </div>
-        <p className="form-hint" style={{ marginBottom: 16, textAlign: "center" }}>
-          ✨ Poster auto-generates from the details below — no upload needed
+        <p className="form-hint" style={{ textAlign: "center", marginBottom: 16 }}>
+          ✨ Poster auto-generates from the fields below — no image upload needed
         </p>
 
         <form onSubmit={handleSubmit}>
-          <div className="form-group"><label>Title *</label><input value={form.title} onChange={set("title")} placeholder="Webinar title" /></div>
-          <div className="form-group"><label>Speaker / Host</label><input value={form.speaker} onChange={set("speaker")} placeholder="Speaker name" /></div>
-          <div className="form-row">
-            <div className="form-group"><label>Date</label><input value={form.date} onChange={set("date")} type="date" /></div>
-            <div className="form-group"><label>Time</label><input value={form.time} onChange={set("time")} placeholder="e.g. 6:00 PM IST" /></div>
+          <div className="form-group">
+            <label>Title *</label>
+            <input value={form.title} onChange={set("title")} placeholder="Webinar title" />
+          </div>
+          <div className="form-group">
+            <label>Speaker / Host</label>
+            <input value={form.speaker} onChange={set("speaker")} placeholder="Speaker name" />
           </div>
           <div className="form-row">
-            <div className="form-group"><label>Platform</label><input value={form.platform} onChange={set("platform")} placeholder="e.g. Zoom, Google Meet" /></div>
+            <div className="form-group">
+              <label>Date</label>
+              <input value={form.date} onChange={set("date")} type="date" />
+            </div>
+            <div className="form-group">
+              <label>Time</label>
+              <input value={form.time} onChange={set("time")} placeholder="e.g. 6:00 PM IST" />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Platform</label>
+              <input value={form.platform} onChange={set("platform")} placeholder="e.g. Zoom, Google Meet" />
+            </div>
             <div className="form-group">
               <label>Topic Tag</label>
               <select value={form.tag} onChange={set("tag")}>
-                <option value="">Select a topic...</option>
+                <option value="">Select a topic…</option>
                 <option value="Leadership">Leadership</option>
                 <option value="Career">Career</option>
                 <option value="Health">Health</option>
@@ -408,14 +490,17 @@ function WebinarForm({ initial, onSave, onClose }) {
                 <option value="Technology">Technology</option>
                 <option value="Motivation">Motivation</option>
               </select>
-              <p className="form-hint">Tag changes the poster accent color</p>
+              <p className="form-hint">Changes the poster accent colour</p>
             </div>
           </div>
           <div className="form-group">
             <label>Registration Link</label>
-            <input value={form.registrationLink} onChange={set("registrationLink")} placeholder="https://forms.gle/..." />
+            <input value={form.registrationLink} onChange={set("registrationLink")} placeholder="https://forms.gle/…" />
           </div>
-          <div className="form-group"><label>Description</label><textarea value={form.description} onChange={set("description")} placeholder="What will participants learn?" /></div>
+          <div className="form-group">
+            <label>Description</label>
+            <textarea value={form.description} onChange={set("description")} placeholder="What will participants learn?" />
+          </div>
           <div className="form-actions">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary">{initial ? "Update" : "Add Webinar"}</button>
@@ -426,18 +511,20 @@ function WebinarForm({ initial, onSave, onClose }) {
   );
 }
 
-/* ─── GLIMPSES CRUD ─────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  GLIMPSES                                                                  */
+/* ═══════════════════════════════════════════════════════════════════════════ */
 function GlimpsesAdmin() {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [items,    setItems]    = useState([]);
+  const [loading,  setLoading]  = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState(null);
+  const [editing,  setEditing]  = useState(null);
 
   useEffect(() => { fetchItems(); }, []);
 
   async function fetchItems() {
-    const q = query(collection(db, "glimpses"), orderBy("createdAt", "desc"));
-    const snap = await getDocs(q).catch(() => ({ docs: [] }));
+    setLoading(true);
+    const snap = await getDocs(query(collection(db, "glimpses"), orderBy("createdAt", "desc"))).catch(() => ({ docs: [] }));
     setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     setLoading(false);
   }
@@ -464,22 +551,34 @@ function GlimpsesAdmin() {
     <section>
       <div className="section-header">
         <h2>Webinar Glimpses <span className="count-badge">{items.length}</span></h2>
-        <button className="btn btn-primary" onClick={() => { setEditing(null); setShowForm(true); }}>+ Add Glimpse</button>
+        <button className="btn btn-primary" onClick={() => { setEditing(null); setShowForm(true); }}>
+          + Add Glimpse
+        </button>
       </div>
-      {loading ? <p className="loading-text">Loading...</p> : (
+
+      {loading ? <p className="loading-text">Loading…</p> : (
         <div className="admin-table-wrap">
           <table className="admin-table">
-            <thead><tr><th>Title</th><th>Speaker</th><th>Tag</th><th>Date</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr><th>Thumb</th><th>Title</th><th>Speaker</th><th>Tag</th><th>Date</th><th>Actions</th></tr>
+            </thead>
             <tbody>
-              {items.length === 0 && <tr><td colSpan={5} className="empty-row">No glimpses yet</td></tr>}
+              {items.length === 0 && (
+                <tr><td colSpan={6} className="empty-row">No glimpses yet</td></tr>
+              )}
               {items.map((g) => (
                 <tr key={g.id}>
+                  <td>
+                    {g.thumbnailUrl
+                      ? <img src={g.thumbnailUrl} alt="" style={{ width: 56, height: 36, objectFit: "cover", borderRadius: 4 }} />
+                      : <span style={{ fontSize: 20 }}>🎬</span>}
+                  </td>
                   <td><strong>{g.title}</strong></td>
                   <td>{g.speaker || "—"}</td>
-                  <td>{g.tag || "—"}</td>
-                  <td>{g.date || "—"}</td>
+                  <td>{g.tag    || "—"}</td>
+                  <td>{g.date  || "—"}</td>
                   <td className="action-cell">
-                    <button className="btn btn-ghost btn-sm" onClick={() => { setEditing(g); setShowForm(true); }}>Edit</button>
+                    <button className="btn btn-ghost btn-sm"  onClick={() => { setEditing(g); setShowForm(true); }}>Edit</button>
                     <button className="btn btn-danger btn-sm" onClick={() => handleDelete(g.id)}>Delete</button>
                   </td>
                 </tr>
@@ -488,28 +587,35 @@ function GlimpsesAdmin() {
           </table>
         </div>
       )}
-      {showForm && <GlimpseForm initial={editing} onSave={handleSave} onClose={() => { setShowForm(false); setEditing(null); }} />}
+
+      {showForm && (
+        <GlimpseForm
+          initial={editing}
+          onSave={handleSave}
+          onClose={() => { setShowForm(false); setEditing(null); }}
+        />
+      )}
     </section>
   );
 }
 
 function GlimpseForm({ initial, onSave, onClose }) {
   const [form, setForm] = useState({
-    title: initial?.title || "",
-    speaker: initial?.speaker || "",
-    description: initial?.description || "",
-    videoUrl: initial?.videoUrl || "",
+    title:        initial?.title        || "",
+    speaker:      initial?.speaker      || "",
+    description:  initial?.description  || "",
+    videoUrl:     initial?.videoUrl     || "",
     thumbnailUrl: initial?.thumbnailUrl || "",
-    date: initial?.date || "",
-    tag: initial?.tag || "",
+    date:         initial?.date         || "",
+    tag:          initial?.tag          || "",
   });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const handleSubmit = (e) => {
+  function handleSubmit(e) {
     e.preventDefault();
     if (!form.title || !form.videoUrl) { toast.error("Title and Video URL are required"); return; }
     onSave(form);
-  };
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -517,11 +623,17 @@ function GlimpseForm({ initial, onSave, onClose }) {
         <button className="modal-close" onClick={onClose}>✕</button>
         <h2>{initial ? "Edit Glimpse" : "Add Webinar Glimpse"}</h2>
         <form onSubmit={handleSubmit}>
-          <div className="form-group"><label>Title *</label><input value={form.title} onChange={set("title")} placeholder="Webinar title" /></div>
-          <div className="form-group"><label>Speaker</label><input value={form.speaker} onChange={set("speaker")} placeholder="Speaker name" /></div>
+          <div className="form-group">
+            <label>Title *</label>
+            <input value={form.title} onChange={set("title")} placeholder="Webinar title" />
+          </div>
+          <div className="form-group">
+            <label>Speaker</label>
+            <input value={form.speaker} onChange={set("speaker")} placeholder="Speaker name" />
+          </div>
           <div className="form-group">
             <label>Google Drive Video URL *</label>
-            <input value={form.videoUrl} onChange={set("videoUrl")} placeholder="https://drive.google.com/file/d/..." />
+            <input value={form.videoUrl} onChange={set("videoUrl")} placeholder="https://drive.google.com/file/d/…" />
             <p className="form-hint">Paste the Google Drive share link of the recording</p>
           </div>
           <div className="form-group">
@@ -529,14 +641,22 @@ function GlimpseForm({ initial, onSave, onClose }) {
             <ImageUploader
               value={form.thumbnailUrl}
               onChange={(url) => setForm((f) => ({ ...f, thumbnailUrl: url }))}
-              folder="glimpse-thumbnails"
             />
           </div>
           <div className="form-row">
-            <div className="form-group"><label>Date</label><input value={form.date} onChange={set("date")} type="date" /></div>
-            <div className="form-group"><label>Tag</label><input value={form.tag} onChange={set("tag")} placeholder="e.g. Workshop" /></div>
+            <div className="form-group">
+              <label>Date</label>
+              <input value={form.date} onChange={set("date")} type="date" />
+            </div>
+            <div className="form-group">
+              <label>Tag</label>
+              <input value={form.tag} onChange={set("tag")} placeholder="e.g. Workshop" />
+            </div>
           </div>
-          <div className="form-group"><label>Description</label><textarea value={form.description} onChange={set("description")} placeholder="Brief description..." /></div>
+          <div className="form-group">
+            <label>Description</label>
+            <textarea value={form.description} onChange={set("description")} placeholder="Brief description…" />
+          </div>
           <div className="form-actions">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary">{initial ? "Update" : "Add Glimpse"}</button>
@@ -547,13 +667,15 @@ function GlimpseForm({ initial, onSave, onClose }) {
   );
 }
 
-/* ─── ADMINS MANAGEMENT (Super Admin only) ──────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  ADMINS MANAGEMENT  (Super Admin only)                                     */
+/* ═══════════════════════════════════════════════════════════════════════════ */
 function AdminsAdmin() {
   const { user, SUPER_ADMIN } = useAuth();
-  const [admins, setAdmins] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [newEmail, setNewEmail] = useState("");
-  const [newName, setNewName] = useState("");
+  const [admins,    setAdmins]    = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [newEmail,  setNewEmail]  = useState("");
+  const [newName,   setNewName]   = useState("");
 
   useEffect(() => { fetchAdmins(); }, []);
 
@@ -593,6 +715,7 @@ function AdminsAdmin() {
       <div className="section-header">
         <h2>Manage Admins <span className="count-badge">{admins.length}</span></h2>
       </div>
+
       <form className="add-admin-form" onSubmit={addAdmin}>
         <h3>Add New Admin</h3>
         <div className="form-row">
@@ -610,10 +733,13 @@ function AdminsAdmin() {
         </div>
         <p className="form-hint">The person must sign in with this Google account to access admin features.</p>
       </form>
-      {loading ? <p className="loading-text">Loading...</p> : (
+
+      {loading ? <p className="loading-text">Loading…</p> : (
         <div className="admin-table-wrap">
           <table className="admin-table">
-            <thead><tr><th>Name</th><th>Email</th><th>Added</th><th>Role</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr><th>Name</th><th>Email</th><th>Added</th><th>Role</th><th>Actions</th></tr>
+            </thead>
             <tbody>
               {admins.map((a) => (
                 <tr key={a.id}>
